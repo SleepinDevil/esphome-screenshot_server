@@ -1,7 +1,6 @@
 #include "screenshot_server.h"
 #include "esphome/core/log.h"
 #include <string>
-#include "esp_lcd_panel_rgb.h"
 
 namespace esphome {
 namespace screenshot_server {
@@ -14,11 +13,9 @@ class ScreenshotHandler : public AsyncWebHandler {
 
   bool canHandle(AsyncWebServerRequest *request) {
     if (request->method() != HTTP_GET) return false;
-#ifdef USE_ESP_IDF
-    return request->url_to() == "/screenshot.bmp";
-#else
+    
+    // We strictly use url() here to avoid the span memory bug!
     return request->url() == "/screenshot.bmp";
-#endif
   }
 
   bool can_handle(AsyncWebServerRequest *request) {
@@ -67,19 +64,9 @@ class ScreenshotHandler : public AsyncWebHandler {
     bmp_data.reserve(total_size);
     bmp_data.append((char*)header, header_size);
 
-    // -- EXTRACT THE RAW ESP-IDF HARDWARE BUFFER --
-    esp_lcd_panel_handle_t handle = ((ST7701SAccessor*)parent_->display_)->get_handle();
-    void *fb = nullptr;
-    
-    if (handle != nullptr) {
-        // Grab the pointer directly from the LCD DMA engine
-        esp_lcd_rgb_panel_get_frame_buffer(handle, 1, &fb);
-    }
-    
+    uint8_t *fb = parent_->display_->get_buffer(); 
     if (fb != nullptr) {
       bmp_data.append((char*)fb, image_size);
-    } else {
-      ESP_LOGE(TAG, "Failed to extract hardware framebuffer from ST7701S!");
     }
 
     AsyncWebServerResponse *response = request->beginResponse(200, "image/bmp", bmp_data);
@@ -108,7 +95,7 @@ void ScreenshotServer::setup() {
     return;
   }
 
-  ESP_LOGCONFIG(TAG, "Setting up hardware-level Screenshot Server endpoint at /screenshot.bmp");
+  ESP_LOGCONFIG(TAG, "Setting up Screenshot Server endpoint at /screenshot.bmp");
   web_server_base::global_web_server_base->get_server()->addHandler(new ScreenshotHandler(this));
 }
 
