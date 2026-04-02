@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-# Ensure standard components are loaded first
 DEPENDENCIES = ['display', 'web_server']
 
 screenshot_server_ns = cg.esphome_ns.namespace('screenshot_server')
@@ -10,7 +9,6 @@ ScreenshotServer = screenshot_server_ns.class_('ScreenshotServer', cg.Component)
 
 CONF_DISPLAY_ID = 'display_id'
 
-# Validate against the generic Component class
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(ScreenshotServer),
     cv.Required(CONF_DISPLAY_ID): cv.use_id(cg.Component), 
