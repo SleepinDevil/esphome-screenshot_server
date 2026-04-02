@@ -1,3 +1,4 @@
+
 #include "screenshot_server.h"
 #include "esphome/core/log.h"
 #include <algorithm>
@@ -8,20 +9,26 @@ namespace screenshot_server {
 static const char *const TAG = "screenshot_server";
 
 void ScreenshotServer::setup() {
-  if (!this->display_ || !this->web_server_) {
-    ESP_LOGE(TAG, "Display or WebServer not configured!");
+  // Auto-detect the web server
+  if (web_server_base::global_web_server_base == nullptr) {
+    ESP_LOGE(TAG, "WebServerBase not found! Ensure web_server is enabled in YAML.");
+    this->mark_failed();
+    return;
+  }
+
+  if (!this->width_func_ || !this->height_func_ || !this->buffer_func_) {
+    ESP_LOGE(TAG, "Display not correctly configured!");
     this->mark_failed();
     return;
   }
 
   ESP_LOGCONFIG(TAG, "Setting up Screenshot Server endpoint at /screenshot.bmp");
 
-  this->web_server_->get_server()->on("/screenshot.bmp", HTTP_GET, [this](AsyncWebServerRequest *request) {
+  web_server_base::global_web_server_base->get_server()->on("/screenshot.bmp", HTTP_GET, [this](AsyncWebServerRequest *request) {
     
-    int width = this->display_->get_width();
-    int height = this->display_->get_height();
+    int width = this->width_func_();
+    int height = this->height_func_();
     
-    // 16-bit RGB565 requires 2 bytes per pixel, pad to multiple of 4
     int row_size = ((width * 2) + 3) & ~3; 
     size_t image_size = row_size * height;
     size_t header_size = 66; 
@@ -46,7 +53,6 @@ void ScreenshotServer::setup() {
           memcpy(&header[14], &dib_size, 4);
           memcpy(&header[18], &width, 4);
           
-          // Negative height flags image as Top-Down!
           int32_t neg_height = -height; 
           memcpy(&header[22], &neg_height, 4);
           
@@ -54,11 +60,10 @@ void ScreenshotServer::setup() {
           memcpy(&header[26], &planes, 2);
           uint16_t bpp = 16;
           memcpy(&header[28], &bpp, 2);
-          uint32_t compression = 3; // BI_BITFIELDS
+          uint32_t compression = 3; 
           memcpy(&header[30], &compression, 4);
           memcpy(&header[34], &image_size, 4);
 
-          // RGB565 Bitmasks
           uint32_t r_mask = 0xF800;
           uint32_t g_mask = 0x07E0;
           uint32_t b_mask = 0x001F;
@@ -77,7 +82,7 @@ void ScreenshotServer::setup() {
           if (pixel_index < image_size) {
             size_t pixel_bytes_to_write = std::min(maxLen - bytes_written, image_size - pixel_index);
             
-            uint8_t *fb = this->display_->get_buffer(); 
+            uint8_t *fb = this->buffer_func_(); 
             if (fb != nullptr) {
               memcpy(buffer + bytes_written, fb + pixel_index, pixel_bytes_to_write);
               bytes_written += pixel_bytes_to_write;
