@@ -11,17 +11,12 @@ class ScreenshotHandler : public AsyncWebHandler {
  public:
   ScreenshotHandler(ScreenshotServer *parent) : parent_(parent) {}
 
-  // Removing the 'override' keyword prevents strict compilation failures.
-  // C++ will naturally bind this to the virtual base class behind the scenes.
   bool canHandle(AsyncWebServerRequest *request) {
     if (request->method() != HTTP_GET) return false;
     
-    // Safely handle ESPHome's new ESP-IDF string deprecation
-#ifdef USE_ESP_IDF
-    return request->url_to() == "/screenshot.bmp";
-#else
+    // We use url() here. It will trigger a deprecation warning in the log, 
+    // but completely avoids the complex std::span buffer requirements of url_to().
     return request->url() == "/screenshot.bmp";
-#endif
   }
 
   // Fallback for newer ESPHome snake_case API requirements
