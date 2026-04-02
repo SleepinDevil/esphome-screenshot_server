@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.components import display
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ['display', 'web_server']
@@ -11,7 +12,7 @@ CONF_DISPLAY_ID = 'display_id'
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(ScreenshotServer),
-    cv.Required(CONF_DISPLAY_ID): cv.use_id(cg.Component), 
+    cv.Required(CONF_DISPLAY_ID): cv.use_id(display.DisplayBuffer), 
 }).extend(cv.COMPONENT_SCHEMA)
 
 async def to_code(config):
