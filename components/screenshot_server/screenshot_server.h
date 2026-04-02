@@ -9,7 +9,6 @@ namespace screenshot_server {
 
 class ScreenshotServer : public Component {
  public:
-  // Accept ANY display class without caring about its inheritance tree
   template <typename T> void set_display(T *display) {
     this->width_func_ = [display]() -> int { return display->get_width(); };
     this->height_func_ = [display]() -> int { return display->get_height(); };
@@ -19,7 +18,7 @@ class ScreenshotServer : public Component {
   void setup() override;
   float get_setup_priority() const override { return setup_priority::LATE; }
 
- protected:
+  // Moved to public so the WebHandler can read them
   std::function<int()> width_func_;
   std::function<int()> height_func_;
   std::function<uint8_t*()> buffer_func_;
