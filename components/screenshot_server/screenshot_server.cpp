@@ -7,17 +7,30 @@ namespace screenshot_server {
 
 static const char *const TAG = "screenshot_server";
 
-// ESP-IDF requires a dedicated Handler class instead of a simple lambda function
 class ScreenshotHandler : public AsyncWebHandler {
  public:
   ScreenshotHandler(ScreenshotServer *parent) : parent_(parent) {}
 
-  bool canHandle(AsyncWebServerRequest *request) override {
+  // Removing the 'override' keyword prevents strict compilation failures.
+  // C++ will naturally bind this to the virtual base class behind the scenes.
+  bool canHandle(AsyncWebServerRequest *request) {
     if (request->method() != HTTP_GET) return false;
+    
+    // Safely handle ESPHome's new ESP-IDF string deprecation
+#ifdef USE_ESP_IDF
+    return request->url_to() == "/screenshot.bmp";
+#else
     return request->url() == "/screenshot.bmp";
+#endif
   }
 
-  void handleRequest(AsyncWebServerRequest *request) override {
+  // Fallback for newer ESPHome snake_case API requirements
+  bool can_handle(AsyncWebServerRequest *request) {
+    return canHandle(request);
+  }
+
+  // Main HTTP routing function
+  void handleRequest(AsyncWebServerRequest *request) {
     int width = parent_->width_func_();
     int height = parent_->height_func_();
     
@@ -56,9 +69,7 @@ class ScreenshotHandler : public AsyncWebHandler {
     memcpy(&header[58], &g_mask, 4);
     memcpy(&header[62], &b_mask, 4);
 
-    // 2. Assemble the full file in PSRAM
-    // std::string safely handles binary data and dynamically routes 
-    // allocations this large (~460KB) straight to the ESP32-S3's PSRAM.
+    // 2. Assemble the full file directly in PSRAM
     std::string bmp_data;
     bmp_data.reserve(total_size);
     bmp_data.append((char*)header, header_size);
@@ -68,10 +79,15 @@ class ScreenshotHandler : public AsyncWebHandler {
       bmp_data.append((char*)fb, image_size);
     }
 
-    // 3. Send to ESP-IDF Web Server
+    // 3. Send via ESP-IDF Web Server
     AsyncWebServerResponse *response = request->beginResponse(200, "image/bmp", bmp_data);
     response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     request->send(response);
+  }
+
+  // Fallback for newer ESPHome snake_case API requirements
+  void handle_request(AsyncWebServerRequest *request) {
+    handleRequest(request);
   }
 
  private:
@@ -93,12 +109,8 @@ void ScreenshotServer::setup() {
 
   ESP_LOGCONFIG(TAG, "Setting up Screenshot Server endpoint at /screenshot.bmp");
 
-  // Register the custom handler, supporting both ESP-IDF and Arduino methods securely
-#ifdef USE_ESP_IDF
-  web_server_base::global_web_server_base->get_server()->add_handler(new ScreenshotHandler(this));
-#else
+  // Fixed camelCase method for the ESP-IDF AsyncWebServer
   web_server_base::global_web_server_base->get_server()->addHandler(new ScreenshotHandler(this));
-#endif
 }
 
 }  // namespace screenshot_server
